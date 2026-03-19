@@ -1,105 +1,154 @@
-# 🏥 IA Local + FHIR: Pipeline Clínico com Zero Cloud
+<div align="center">
 
-Pipeline completo de IA clínica rodando **100% local**: HAPI FHIR R4 + Ollama (LLaMA 3) + Python.
+# 🏥 Local Clinical AI + FHIR Pipeline
 
-Nenhum dado sai da sua máquina. Zero API paga. Zero cloud.
+### _Zero Cloud · Zero Cost · Zero Data Leakage_
 
-## O que faz
+<br>
 
-1. **HAPI FHIR** sobe como servidor de dados clínicos (padrão HL7 FHIR R4 — o mesmo da RNDS/SUS)
-2. **Paciente sintética** é criada com diabetes, hipertensão, HbA1c 9.2%, PA 150/95, metformina e losartana
-3. **Script Python** consulta o FHIR via REST API e monta contexto clínico estruturado
-4. **Ollama (LLaMA 3)** recebe o contexto e responde com raciocínio clínico fundamentado nos dados
+[![FHIR R4](https://img.shields.io/badge/FHIR-R4-blue?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=)](https://hl7.org/fhir/)
+[![Ollama](https://img.shields.io/badge/Ollama-LLaMA_3-black?style=for-the-badge&logo=meta)](https://ollama.com)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-A IA **não inventa**. Só trabalha com o que veio do FHIR.
+<br>
 
-## Pré-requisitos
+**A fully local clinical AI pipeline that reads patient data from a FHIR R4 server using Ollama. No data leaves your machine. Ever.**
 
-- Docker e Docker Compose
-- Python 3.8+ com `requests` (`pip install requests`)
-- ~4GB livres para o modelo LLaMA 3
+**Um pipeline de IA clínica 100% local que lê dados de pacientes de um servidor FHIR R4 usando Ollama. Nenhum dado sai da sua máquina. Nunca.**
 
-## Quickstart
+<br>
 
-```bash
-# 1. Suba os serviços
-docker compose up -d
+[🇬🇧 English](#-what-it-does) · [🇧🇷 Português](#-o-que-faz) · [📖 Full Docs ↓](#-full-documentation)
 
-# 2. Baixe o modelo (primeira vez, ~4GB)
-docker exec -it $(docker ps -q -f name=ollama) ollama pull llama3
-
-# 3. Aguarde o HAPI FHIR subir (~30s) e carregue a paciente
-bash load_patient.sh
-
-# 4. Rode a demo
-python fhir_ollama_demo.py
-```
-
-## Output esperado
-
-```
-=== Consultando servidor FHIR ===
-
-Dados recuperados:
-Paciente: Maria Santos, female, nascimento: 1966-05-12
-
-Condicoes ativas:
-- Diabetes mellitus (SNOMED: 73211009)
-- Hypertensive disorder (SNOMED: 38341003)
-
-Observacoes recentes:
-- Hemoglobin A1c: 9.2 %
-- Blood pressure panel: Systolic blood pressure: 150mmHg, Diastolic blood pressure: 95mmHg
-
-Medicacoes ativas:
-- Metformina 850mg (850mg 2x/dia)
-- Losartana 50mg (50mg 1x/dia)
-
-==================================================
-
-Perguntando ao Ollama (llama3)...
-Pergunta: Quais sao as condicoes dessa paciente e como os exames se relacionam com o tratamento atual?
-
-Resposta:
-[Ollama responde com raciocínio clínico baseado nos dados FHIR]
-```
-
-## Stack
-
-| Componente | Papel | Licença |
-|-----------|-------|---------|
-| [HAPI FHIR](https://github.com/hapifhir/hapi-fhir-jpaserver-starter) | Servidor FHIR R4 | Apache 2.0 |
-| [Ollama](https://ollama.com) | Runtime de LLM local | MIT |
-| [LLaMA 3](https://llama.meta.com) | Modelo de linguagem | Meta License |
-| Python + requests | Orquestração | MIT |
-
-## Recursos FHIR criados
-
-- 1 **Patient** (Maria Santos, 58 anos)
-- 2 **Conditions** (Diabetes SNOMED:73211009, Hipertensão SNOMED:38341003)
-- 2 **Observations** (HbA1c LOINC:4548-4 = 9.2%, PA LOINC:85354-9 = 150/95)
-- 2 **MedicationRequests** (Metformina 850mg BID, Losartana 50mg QD)
-
-Todos os resources seguem o padrão FHIR R4 com terminologias oficiais (SNOMED CT, LOINC, UCUM).
-
-## Por que isso importa
-
-- **LGPD by design**: nenhum dado clínico sai da máquina
-- **Padrão RNDS**: mesmo formato que o SUS usa (2,8 bilhões de registros em FHIR R4)
-- **Custo zero**: Docker + Ollama + HAPI FHIR = tudo open-source
-- **Reproduzível**: qualquer dev com Docker roda em 5 minutos
-
-## Próximos passos
-
-- [ ] Adicionar Synthea para geração automática de pacientes
-- [ ] Integrar Presidio para anonimização pré-LLM
-- [ ] Adicionar RAGAS para avaliação de qualidade das respostas
-- [ ] Implementar MCP Server para acesso padronizado
-
-## Autor
-
-**Rogério Rodrigues** — Azure MVP | Pesquisador Mestrado UFSC (Informática em Saúde) | Professor USP/FIAP
+</div>
 
 ---
 
-*Esse repositório faz parte da minha pesquisa de mestrado na UFSC sobre simulação clínica com IA para estudantes de enfermagem.*
+## 🇬🇧 What It Does
+
+```
+┌─────────────┐     REST API      ┌─────────────┐     Context      ┌─────────────┐
+│             │  ──────────────►  │             │  ────────────►  │             │
+│  HAPI FHIR  │   Patient data    │   Python    │   Clinical      │   Ollama    │
+│  Server     │  ◄──────────────  │   Script    │   reasoning     │   LLaMA 3   │
+│  (FHIR R4)  │     JSON+FHIR     │             │  ◄────────────  │   (Local)   │
+└─────────────┘                   └─────────────┘                 └─────────────┘
+    Docker                           60 lines                        Docker
+```
+
+Two Docker containers. One Python script. That's it.
+
+The HAPI FHIR server stores clinical data (the same standard Brazil's national health network RNDS uses — 2.8 billion records). The Python script queries patient data via REST API, builds a clinical context, and sends it to Ollama running LLaMA 3 locally. The AI responds with clinical reasoning grounded **exclusively** in the FHIR data. No hallucination. No cloud.
+
+### ⚡ Quickstart
+
+```bash
+git clone https://github.com/YOUR_USER/fhir-ollama-local.git
+cd fhir-ollama-local
+
+docker compose up -d
+docker exec -it $(docker ps -q -f name=ollama) ollama pull llama3
+bash load_patient.sh
+python fhir_ollama_demo.py
+```
+
+---
+
+## 🇧🇷 O Que Faz
+
+Dois containers Docker. Um script Python de 60 linhas. Só isso.
+
+O servidor HAPI FHIR armazena dados clínicos no padrão FHIR R4 — o mesmo que a RNDS do SUS usa (2,8 bilhões de registros). O script Python consulta os dados do paciente via REST API, monta o contexto clínico e envia para o Ollama rodando LLaMA 3 localmente. A IA responde com raciocínio clínico fundamentado **exclusivamente** nos dados do FHIR. Sem alucinação. Sem cloud.
+
+### ⚡ Início Rápido
+
+```bash
+git clone https://github.com/YOUR_USER/fhir-ollama-local.git
+cd fhir-ollama-local
+
+docker compose up -d
+docker exec -it $(docker ps -q -f name=ollama) ollama pull llama3
+bash load_patient.sh
+python fhir_ollama_demo.py
+```
+
+---
+
+## 🩺 Sample Patient: Maria Santos
+
+| Resource | Details | Code |
+|----------|---------|------|
+| 👤 **Patient** | Maria Santos, female, born 1966-05-12 | — |
+| 🔴 **Condition** | Diabetes mellitus | `SNOMED 73211009` |
+| 🟠 **Condition** | Hypertensive disorder | `SNOMED 38341003` |
+| 🔬 **Observation** | Hemoglobin A1c: **9.2%** | `LOINC 4548-4` |
+| 💓 **Observation** | Blood pressure: **150/95 mmHg** | `LOINC 85354-9` |
+| 💊 **Medication** | Metformin 850mg (2x/day) | — |
+| 💊 **Medication** | Losartan 50mg (1x/day) | — |
+
+All resources use official terminologies (SNOMED CT, LOINC, UCUM) and follow the FHIR R4 specification.
+
+---
+
+## 🛠️ Stack
+
+| Component | Role | License |
+|-----------|------|---------|
+| [🔥 HAPI FHIR](https://github.com/hapifhir/hapi-fhir-jpaserver-starter) | Clinical data server (FHIR R4) | Apache 2.0 |
+| [🦙 Ollama](https://ollama.com) | Local LLM runtime | MIT |
+| [🧠 LLaMA 3](https://llama.meta.com) | Language model | Meta License |
+| [🐍 Python](https://python.org) | Orchestration (60 lines) | MIT |
+| [🐳 Docker](https://docker.com) | Container runtime | Apache 2.0 |
+
+---
+
+## 🔐 Why It Matters
+
+| | Traditional Cloud AI | This Pipeline |
+|---|---|---|
+| 🔒 **Privacy** | Data sent to external APIs | Data never leaves your machine |
+| 💰 **Cost** | API fees per token | Completely free |
+| 📋 **Compliance** | Complex LGPD/GDPR setup | LGPD-friendly by design |
+| 🏥 **Standard** | Proprietary formats | FHIR R4 (RNDS/SUS compatible) |
+| 🔄 **Reproducible** | Depends on API availability | Runs offline, anytime |
+
+---
+
+## 📖 Full Documentation
+
+| Language | Link |
+|----------|------|
+| 🇬🇧 English | [docs/README.en.md](docs/README.en.md) |
+| 🇧🇷 Português | [docs/README.pt.md](docs/README.pt.md) |
+| 🇪🇸 Español | [docs/README.es.md](docs/README.es.md) |
+| 🇮🇹 Italiano | [docs/README.it.md](docs/README.it.md) |
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] 🧬 Synthea integration for automated patient generation
+- [ ] 🛡️ Presidio integration for pre-LLM anonymization
+- [ ] 📊 RAGAS quality evaluation pipeline
+- [ ] 🔌 MCP Server for standardized AI-FHIR access
+- [ ] 🎓 Clinical simulation scenarios for nursing students
+
+---
+
+## 👨‍💻 Author
+
+**Rogério Rodrigues** — Azure MVP · UFSC Health Informatics Researcher · Professor USP/FIAP
+
+*This repo is part of my master's research at UFSC on clinical simulation with AI for nursing students.*
+
+---
+
+<div align="center">
+
+Made with ☕ from a sítio in Santa Catarina, Brazil
+
+⭐ Star this repo if you found it useful!
+
+</div>
