@@ -5,43 +5,47 @@ FHIR_URL = "http://localhost:8080/fhir"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 PAGE_SIZE = 10
 
+# Curated demo patients with rich clinical data (loaded by load_patient.sh)
+CURATED_PATIENTS = [
+    {"id": "maria-001", "nome": "Maria Santos", "cenario": "Diabetes + Hipertensao (ambulatorial)"},
+    {"id": "joao-002", "nome": "Joao Oliveira", "cenario": "ICC descompensada (UTI)"},
+    {"id": "ana-003", "nome": "Ana Costa", "cenario": "Asma grave + Pneumonia (emergencia)"},
+]
 
-def get_patient_count():
-    """Retorna total de pacientes no servidor FHIR"""
-    resp = requests.get(f"{FHIR_URL}/Patient?_summary=count").json()
-    return resp.get("total", 0)
+
+def get_curated_patients():
+    """Retorna pacientes curados que existem no servidor FHIR"""
+    available = []
+    for p in CURATED_PATIENTS:
+        resp = requests.get(f"{FHIR_URL}/Patient/{p['id']}")
+        if resp.status_code == 200:
+            available.append(p)
+    return available
 
 
-def list_patients(page=0):
-    """Lista pacientes com paginacao usando Bundle links"""
-    url = f"{FHIR_URL}/Patient?_count={PAGE_SIZE}&_sort=family"
-    # Navigate to the correct page by following next links
-    for _ in range(page):
-        resp = requests.get(url).json()
-        next_link = None
-        for link in resp.get("link", []):
-            if link.get("relation") == "next":
-                next_link = link["url"]
-                break
-        if not next_link:
-            return []
-        url = next_link
-
+def get_synthea_patients(page=0):
+    """Lista pacientes Synthea (exclui curados) com paginacao"""
+    curated_ids = {p["id"] for p in CURATED_PATIENTS}
+    url = f"{FHIR_URL}/Patient?_count=100&_sort=family"
     resp = requests.get(url).json()
-    patients = []
+    all_patients = []
     for e in resp.get("entry", []):
         r = e["resource"]
+        if r["id"] in curated_ids:
+            continue
         names = r.get("name") or [{}]
         name = names[0] if names else {}
         given = name.get("given", [""])[0]
         family = name.get("family", "")
-        patients.append({
+        all_patients.append({
             "id": r["id"],
             "name": f"{given} {family}".strip(),
             "gender": r.get("gender", ""),
             "birthDate": r.get("birthDate", ""),
         })
-    return patients
+    # Paginate
+    start = page * PAGE_SIZE
+    return all_patients[start:start + PAGE_SIZE], len(all_patients)
 
 
 def get_patient_conditions(patient_id):
@@ -54,7 +58,7 @@ def get_patient_conditions(patient_id):
         code_block = e["resource"].get("code", {})
         coding = code_block.get("coding", [{}])[0]
         display = coding.get("display", code_block.get("text", ""))
-        if display:
+        if display and display not in conditions:
             conditions.append(display)
     return conditions
 
@@ -172,60 +176,76 @@ PERGUNTA: {question}"""
     return resp.json()["response"]
 
 
-def show_menu(patients, page, total_pages):
+def show_menu(curated, synthea_patients, synthea_page, synthea_total_pages):
     print("\n" + "=" * 50)
     print("  FHIR + Ollama - Assistente Clinico")
     print("=" * 50)
 
-    if not patients:
+    idx = 1
+
+    # Section 1: Curated demo patients
+    if curated:
+        print("\n-- Cenarios clinicos curados (dados ricos) --\n")
+        for p in curated:
+            print(f"  [{idx}] {p['nome']} - {p['cenario']}")
+            idx += 1
+
+    # Section 2: Synthea patients
+    if synthea_patients:
+        print(f"\n-- Pacientes Synthea (pagina {synthea_page + 1}/{synthea_total_pages}) --\n")
+        for p in synthea_patients:
+            gender_label = p["gender"][0].upper() if p["gender"] else "?"
+            print(f"  [{idx}] {p['name']} ({gender_label}, {p['birthDate']})")
+            conditions = get_patient_conditions(p["id"])
+            if conditions:
+                print(f"      {', '.join(conditions[:5])}")
+            idx += 1
+
+    if not curated and not synthea_patients:
         print("\n  Nenhum paciente encontrado.")
         print("  Aguarde o carregamento do Synthea.")
-        print(f"\n  [0] Sair")
-        print()
-        return
-
-    print(f"\nPacientes disponiveis (pagina {page + 1}/{total_pages}):\n")
-    for i, p in enumerate(patients, 1):
-        gender_label = p["gender"][0].upper() if p["gender"] else "?"
-        print(f"  [{i}] {p['name']} ({gender_label}, {p['birthDate']})")
-        conditions = get_patient_conditions(p["id"])
-        if conditions:
-            print(f"      {', '.join(conditions[:5])}")
 
     print()
-    if total_pages > 1:
-        if page < total_pages - 1:
-            print("  [n] Proxima pagina")
-        if page > 0:
-            print("  [p] Pagina anterior")
+    if synthea_total_pages > 1:
+        if synthea_page < synthea_total_pages - 1:
+            print("  [n] Proxima pagina (Synthea)")
+        if synthea_page > 0:
+            print("  [p] Pagina anterior (Synthea)")
     print("  [0] Sair")
     print()
 
 
 if __name__ == "__main__":
-    page = 0
+    synthea_page = 0
     while True:
-        total = get_patient_count()
-        total_pages = max(1, math.ceil(total / PAGE_SIZE))
-        patients = list_patients(page)
+        curated = get_curated_patients()
+        synthea_patients, synthea_total = get_synthea_patients(synthea_page)
+        synthea_total_pages = max(1, math.ceil(synthea_total / PAGE_SIZE))
 
-        show_menu(patients, page, total_pages)
+        show_menu(curated, synthea_patients, synthea_page, synthea_total_pages)
         choice = input("Escolha o paciente: ").strip().lower()
 
         if choice == "0":
             print("\nEncerrado. Ate logo!")
             break
-        elif choice == "n" and page < total_pages - 1:
-            page += 1
+        elif choice == "n" and synthea_page < synthea_total_pages - 1:
+            synthea_page += 1
             continue
-        elif choice == "p" and page > 0:
-            page -= 1
+        elif choice == "p" and synthea_page > 0:
+            synthea_page -= 1
             continue
+
+        # Build combined list for index lookup
+        all_options = []
+        for p in curated:
+            all_options.append({"id": p["id"], "name": p["nome"]})
+        for p in synthea_patients:
+            all_options.append({"id": p["id"], "name": p["name"]})
 
         try:
             idx = int(choice) - 1
-            if 0 <= idx < len(patients):
-                patient = patients[idx]
+            if 0 <= idx < len(all_options):
+                patient = all_options[idx]
             else:
                 print("\nOpcao invalida. Tente novamente.")
                 continue

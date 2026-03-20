@@ -7,9 +7,10 @@ ENV SYNTHEA_VERSION=3.3.0
 RUN curl -L -o /opt/synthea.jar \
     https://github.com/synthetichealth/synthea/releases/download/v${SYNTHEA_VERSION}/synthea-with-dependencies.jar
 
-COPY synthea.properties /opt/synthea.properties
-COPY entrypoint.sh /opt/entrypoint.sh
-RUN chmod +x /opt/entrypoint.sh
+COPY synthea/synthea.properties /opt/synthea.properties
+COPY synthea/entrypoint.sh /opt/entrypoint.sh
+COPY load_patient.sh /opt/load_patient.sh
+RUN chmod +x /opt/entrypoint.sh /opt/load_patient.sh
 
 WORKDIR /opt
 ENTRYPOINT ["/opt/entrypoint.sh"]

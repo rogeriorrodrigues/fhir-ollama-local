@@ -12,7 +12,9 @@ services:
       retries: 12
 
   synthea:
-    build: ./synthea
+    build:
+      context: .
+      dockerfile: synthea/Dockerfile
     depends_on:
       fhir:
         condition: service_healthy

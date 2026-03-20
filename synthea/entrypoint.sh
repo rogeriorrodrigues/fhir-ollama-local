@@ -45,7 +45,22 @@ if [ "$CLEAN_FIRST" = "true" ]; then
   echo "Limpeza concluida."
 fi
 
-# Generate patients per module
+# Load curated demo patients (rich clinical data for demo scenarios)
+echo ""
+echo "=========================================="
+echo "  Carregando pacientes curados (demo)"
+echo "=========================================="
+if [ -f /opt/load_patient.sh ]; then
+  SKIP_FHIR_WAIT=1 bash /opt/load_patient.sh
+else
+  echo "  AVISO: load_patient.sh nao encontrado, pulando pacientes curados"
+fi
+
+# Generate Synthea patients (volume + variety)
+echo ""
+echo "=========================================="
+echo "  Gerando pacientes Synthea (volume)"
+echo "=========================================="
 TOTAL_UPLOADED=0
 IFS=',' read -ra MODULE_LIST <<< "$MODULES"
 
