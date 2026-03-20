@@ -65,22 +65,44 @@ for MODULE in "${MODULE_LIST[@]}"; do
   echo "Executando: ${CMD[*]}"
   "${CMD[@]}"
 
-  # Upload FHIR bundles
+  # Upload FHIR bundles (hospital/practitioner first, then patients)
   BUNDLE_DIR="/output/$MODULE/fhir"
   if [ -d "$BUNDLE_DIR" ]; then
     BUNDLE_COUNT=0
+
+    # Upload hospital and practitioner bundles first (they are referenced by patient bundles)
+    for BUNDLE in "$BUNDLE_DIR"/hospitalInformation*.json "$BUNDLE_DIR"/practitionerInformation*.json; do
+      [ -f "$BUNDLE" ] || continue
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST "$FHIR_URL" \
+        -H "Content-Type: application/fhir+json" \
+        -d @"$BUNDLE")
+      if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+        BUNDLE_COUNT=$((BUNDLE_COUNT + 1))
+        echo "  Carregado: $(basename "$BUNDLE")"
+      else
+        echo "  AVISO: falha ao carregar $(basename "$BUNDLE") (HTTP $HTTP_CODE)"
+      fi
+    done
+
+    # Upload patient bundles
     for BUNDLE in "$BUNDLE_DIR"/*.json; do
       [ -f "$BUNDLE" ] || continue
-      HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+      # Skip hospital/practitioner files already uploaded
+      case "$(basename "$BUNDLE")" in
+        hospitalInformation*|practitionerInformation*) continue ;;
+      esac
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
         -X POST "$FHIR_URL" \
         -H "Content-Type: application/fhir+json" \
         -d @"$BUNDLE")
       if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
         BUNDLE_COUNT=$((BUNDLE_COUNT + 1))
       else
-        echo "  AVISO: falha ao carregar $BUNDLE (HTTP $HTTP_CODE)"
+        echo "  AVISO: falha ao carregar $(basename "$BUNDLE") (HTTP $HTTP_CODE)"
       fi
     done
+
     echo "  Modulo $MODULE: $BUNDLE_COUNT bundles carregados"
     TOTAL_UPLOADED=$((TOTAL_UPLOADED + BUNDLE_COUNT))
   else
