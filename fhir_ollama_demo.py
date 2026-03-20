@@ -13,11 +13,13 @@ PATIENTS = {
 def get_fhir_context(patient_id):
     """Consulta dados clinicos do paciente via FHIR REST API"""
     patient = requests.get(f"{FHIR_URL}/Patient/{patient_id}").json()
-    name = patient["name"][0]
-    info = (
-        f"Paciente: {name['given'][0]} {name['family']}, "
-        f"{patient['gender']}, nascimento: {patient['birthDate']}"
-    )
+    names = patient.get("name") or [{}]
+    name = names[0] if names else {}
+    given = name.get("given", [""])[0]
+    family = name.get("family", "")
+    gender = patient.get("gender", "")
+    birth = patient.get("birthDate", "")
+    info = f"Paciente: {given} {family}, {gender}, nascimento: {birth}"
 
     # Encounter
     encounters = requests.get(f"{FHIR_URL}/Encounter?patient={patient_id}").json()
@@ -25,7 +27,11 @@ def get_fhir_context(patient_id):
     for e in encounters.get("entry", []):
         r = e["resource"]
         status = r.get("status", "")
-        locations = [loc["location"]["display"] for loc in r.get("location", []) if "display" in loc.get("location", {})]
+        locations = [
+            loc["location"]["display"]
+            for loc in r.get("location", [])
+            if "display" in loc.get("location", {})
+        ]
         if locations:
             enc_info.append(f"- Local: {', '.join(locations)} (status: {status})")
 
@@ -33,29 +39,37 @@ def get_fhir_context(patient_id):
     conditions = requests.get(f"{FHIR_URL}/Condition?patient={patient_id}").json()
     conds = []
     for e in conditions.get("entry", []):
-        c = e["resource"]["code"]["coding"][0]
+        code_block = e["resource"].get("code", {})
+        coding = code_block.get("coding", [{}])[0]
+        display = coding.get("display", code_block.get("text", "Desconhecido"))
+        code_val = coding.get("code", "")
         severity = ""
         sev = e["resource"].get("severity")
         if sev:
-            severity = f" - Gravidade: {sev['coding'][0]['display']}"
-        conds.append(f"- {c['display']} (SNOMED: {c['code']}){severity}")
+            sev_coding = sev.get("coding", [{}])[0]
+            severity = f" - Gravidade: {sev_coding.get('display', '')}"
+        conds.append(f"- {display} (SNOMED: {code_val}){severity}")
 
     # Observations
     observations = requests.get(f"{FHIR_URL}/Observation?patient={patient_id}").json()
     obs = []
     for e in observations.get("entry", []):
         r = e["resource"]
-        code = r["code"]["coding"][0]["display"]
+        code_display = r.get("code", {}).get("coding", [{}])[0].get("display", "")
         if "valueQuantity" in r:
             v = r["valueQuantity"]
-            obs.append(f"- {code}: {v['value']} {v['unit']}")
+            obs.append(f"- {code_display}: {v.get('value', '')} {v.get('unit', '')}")
         elif "component" in r:
             parts = []
             for comp in r["component"]:
-                c = comp["code"]["coding"][0]["display"]
-                v = comp["valueQuantity"]
-                parts.append(f"{c}: {v['value']}{v['unit']}")
-            obs.append(f"- {code}: {', '.join(parts)}")
+                c = comp.get("code", {}).get("coding", [{}])[0].get("display", "")
+                v = comp.get("valueQuantity", {})
+                parts.append(f"{c}: {v.get('value', '')}{v.get('unit', '')}")
+            obs.append(f"- {code_display}: {', '.join(parts)}")
+        elif "valueCodeableConcept" in r:
+            v = r["valueCodeableConcept"]
+            val_display = v.get("coding", [{}])[0].get("display", v.get("text", ""))
+            obs.append(f"- {code_display}: {val_display}")
 
     # Medications
     meds = requests.get(
@@ -64,17 +78,30 @@ def get_fhir_context(patient_id):
     med_list = []
     for e in meds.get("entry", []):
         r = e["resource"]
-        med_name = r["medicationCodeableConcept"]["text"]
-        dosage = r["dosageInstruction"][0]["text"]
-        med_list.append(f"- {med_name} ({dosage})")
+        # Handle both medicationCodeableConcept and medicationReference
+        med_concept = r.get("medicationCodeableConcept", {})
+        med_name = med_concept.get("text") or (
+            med_concept.get("coding", [{}])[0].get("display", "")
+        )
+        if not med_name and "medicationReference" in r:
+            med_name = r["medicationReference"].get("display", "Medicamento")
+        dosage_list = r.get("dosageInstruction", [])
+        dosage = dosage_list[0].get("text", "") if dosage_list else ""
+        if dosage:
+            med_list.append(f"- {med_name} ({dosage})")
+        else:
+            med_list.append(f"- {med_name}")
 
     nl = "\n"
     sections = [info]
     if enc_info:
         sections.append(f"\nInternacao:\n{nl.join(enc_info)}")
-    sections.append(f"\nCondicoes ativas:\n{nl.join(conds)}")
-    sections.append(f"\nObservacoes recentes:\n{nl.join(obs)}")
-    sections.append(f"\nMedicacoes ativas:\n{nl.join(med_list)}")
+    if conds:
+        sections.append(f"\nCondicoes ativas:\n{nl.join(conds)}")
+    if obs:
+        sections.append(f"\nObservacoes recentes:\n{nl.join(obs)}")
+    if med_list:
+        sections.append(f"\nMedicacoes ativas:\n{nl.join(med_list)}")
     return "\n".join(sections)
 
 
