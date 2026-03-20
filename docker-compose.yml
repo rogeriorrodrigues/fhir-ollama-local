@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   fhir:
     image: hapiproject/hapi:latest
@@ -6,11 +5,31 @@ services:
       - "8080:8080"
     environment:
       - hapi.fhir.allow_multiple_delete=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/fhir/metadata || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  synthea:
+    build: ./synthea
+    depends_on:
+      fhir:
+        condition: service_healthy
+    environment:
+      - SYNTHEA_POPULATION=${SYNTHEA_POPULATION:-20}
+      - SYNTHEA_STATE=${SYNTHEA_STATE:-Massachusetts}
+      - SYNTHEA_MODULES=${SYNTHEA_MODULES:-diabetes,asthma,congestive_heart_failure}
+      - SYNTHEA_SEED=${SYNTHEA_SEED:-}
+      - SYNTHEA_CLEAN_FIRST=${SYNTHEA_CLEAN_FIRST:-false}
+      - FHIR_URL=http://fhir:8080/fhir
+
   ollama:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+
 volumes:
   ollama_data:
