@@ -3,6 +3,7 @@ import math
 
 FHIR_URL = "http://localhost:8080/fhir"
 OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL = "llama3.2:3b"
 PAGE_SIZE = 10
 
 # Curated demo patients with rich clinical data (loaded by load_patient.sh)
@@ -244,12 +245,20 @@ DADOS CLINICOS DO PACIENTE (fonte: servidor FHIR R4):
 
 PERGUNTA: {question}"""
 
-    resp = requests.post(
-        OLLAMA_URL,
-        json={"model": "phi4", "prompt": prompt, "stream": False},
-        timeout=120,
-    )
-    return resp.json()["response"]
+    try:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": MODEL, "prompt": prompt, "stream": False},
+            timeout=180,
+        )
+        data = resp.json()
+        if "error" in data:
+            return f"[Erro do modelo: {data['error']}]"
+        return data.get("response", "[Sem resposta do modelo]")
+    except requests.exceptions.Timeout:
+        return "[Erro: timeout - o modelo demorou demais para responder]"
+    except Exception as e:
+        return f"[Erro ao consultar Ollama: {e}]"
 
 
 def show_menu(curated, synthea_patients, synthea_page, synthea_total_pages):
