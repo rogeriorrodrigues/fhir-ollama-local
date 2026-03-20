@@ -21,7 +21,9 @@ services:
     environment:
       - SYNTHEA_POPULATION=${SYNTHEA_POPULATION:-20}
       - SYNTHEA_STATE=${SYNTHEA_STATE:-Massachusetts}
-      - SYNTHEA_MODULES=${SYNTHEA_MODULES:-diabetes,asthma,congestive_heart_failure}
+      - SYNTHEA_MODULES=${SYNTHEA_MODULES:-}
+      - SYNTHEA_MIN_AGE=${SYNTHEA_MIN_AGE:-30}
+      - SYNTHEA_MAX_AGE=${SYNTHEA_MAX_AGE:-85}
       - SYNTHEA_SEED=${SYNTHEA_SEED:-}
       - SYNTHEA_CLEAN_FIRST=${SYNTHEA_CLEAN_FIRST:-false}
       - FHIR_URL=http://fhir:8080/fhir

@@ -23,8 +23,21 @@ def get_curated_patients():
     return available
 
 
+def has_clinical_data(patient_id):
+    """Verifica se o paciente tem dados clinicos (conditions ou observations)"""
+    conds = requests.get(
+        f"{FHIR_URL}/Condition?patient={patient_id}&_summary=count"
+    ).json().get("total", 0)
+    if conds > 0:
+        return True
+    obs = requests.get(
+        f"{FHIR_URL}/Observation?patient={patient_id}&_summary=count"
+    ).json().get("total", 0)
+    return obs > 0
+
+
 def get_synthea_patients(page=0):
-    """Lista pacientes Synthea (exclui curados) com paginacao"""
+    """Lista pacientes Synthea com dados clinicos (exclui curados e vazios)"""
     curated_ids = {p["id"] for p in CURATED_PATIENTS}
     url = f"{FHIR_URL}/Patient?_count=100&_sort=family"
     resp = requests.get(url).json()
@@ -32,6 +45,8 @@ def get_synthea_patients(page=0):
     for e in resp.get("entry", []):
         r = e["resource"]
         if r["id"] in curated_ids:
+            continue
+        if not has_clinical_data(r["id"]):
             continue
         names = r.get("name") or [{}]
         name = names[0] if names else {}
@@ -74,28 +89,46 @@ def get_fhir_context(patient_id):
     birth = patient.get("birthDate", "")
     info = f"Paciente: {given} {family}, {gender}, nascimento: {birth}"
 
-    # Encounter
-    encounters = requests.get(f"{FHIR_URL}/Encounter?patient={patient_id}").json()
+    # Encounter (only active/in-progress, most recent first)
+    encounters = requests.get(
+        f"{FHIR_URL}/Encounter?patient={patient_id}&_sort=-date&_count=5"
+    ).json()
     enc_info = []
     for e in encounters.get("entry", []):
         r = e["resource"]
         status = r.get("status", "")
+        enc_class = r.get("class", {}).get("display", r.get("class", {}).get("code", ""))
+        reason_codes = [
+            rc.get("coding", [{}])[0].get("display", "")
+            for rc in r.get("reasonCode", [])
+        ]
         locations = [
             loc["location"]["display"]
             for loc in r.get("location", [])
             if "display" in loc.get("location", {})
         ]
+        parts = []
+        if enc_class:
+            parts.append(enc_class)
         if locations:
-            enc_info.append(f"- Local: {', '.join(locations)} (status: {status})")
+            parts.append(f"Local: {', '.join(locations)}")
+        if reason_codes:
+            parts.append(f"Motivo: {', '.join(r for r in reason_codes if r)}")
+        parts.append(f"status: {status}")
+        enc_info.append(f"- {' | '.join(parts)}")
 
-    # Conditions
+    # Conditions (active only, deduplicated)
     conditions = requests.get(f"{FHIR_URL}/Condition?patient={patient_id}").json()
     conds = []
+    seen_conditions = set()
     for e in conditions.get("entry", []):
         code_block = e["resource"].get("code", {})
         coding = code_block.get("coding", [{}])[0]
         display = coding.get("display", code_block.get("text", "Desconhecido"))
         code_val = coding.get("code", "")
+        if display in seen_conditions:
+            continue
+        seen_conditions.add(display)
         severity = ""
         sev = e["resource"].get("severity")
         if sev:
@@ -103,35 +136,39 @@ def get_fhir_context(patient_id):
             severity = f" - Gravidade: {sev_coding.get('display', '')}"
         conds.append(f"- {display} (SNOMED: {code_val}){severity}")
 
-    # Observations
-    observations = requests.get(f"{FHIR_URL}/Observation?patient={patient_id}").json()
+    # Observations (most recent 20, sorted by date)
+    observations = requests.get(
+        f"{FHIR_URL}/Observation?patient={patient_id}&_sort=-date&_count=20"
+    ).json()
     obs = []
     for e in observations.get("entry", []):
         r = e["resource"]
         code_display = r.get("code", {}).get("coding", [{}])[0].get("display", "")
+        date = r.get("effectiveDateTime", r.get("issued", ""))[:10]
+        date_suffix = f" ({date})" if date else ""
         if "valueQuantity" in r:
             v = r["valueQuantity"]
-            obs.append(f"- {code_display}: {v.get('value', '')} {v.get('unit', '')}")
+            obs.append(f"- {code_display}: {v.get('value', '')} {v.get('unit', '')}{date_suffix}")
         elif "component" in r:
             parts = []
             for comp in r["component"]:
                 c = comp.get("code", {}).get("coding", [{}])[0].get("display", "")
                 v = comp.get("valueQuantity", {})
                 parts.append(f"{c}: {v.get('value', '')}{v.get('unit', '')}")
-            obs.append(f"- {code_display}: {', '.join(parts)}")
+            obs.append(f"- {code_display}: {', '.join(parts)}{date_suffix}")
         elif "valueCodeableConcept" in r:
             v = r["valueCodeableConcept"]
             val_display = v.get("coding", [{}])[0].get("display", v.get("text", ""))
-            obs.append(f"- {code_display}: {val_display}")
+            obs.append(f"- {code_display}: {val_display}{date_suffix}")
 
-    # Medications
+    # Medications (active + completed recent)
     meds = requests.get(
-        f"{FHIR_URL}/MedicationRequest?patient={patient_id}&status=active"
+        f"{FHIR_URL}/MedicationRequest?patient={patient_id}&_sort=-date&_count=20"
     ).json()
     med_list = []
     for e in meds.get("entry", []):
         r = e["resource"]
-        # Handle both medicationCodeableConcept and medicationReference
+        status = r.get("status", "")
         med_concept = r.get("medicationCodeableConcept", {})
         med_name = med_concept.get("text") or (
             med_concept.get("coding", [{}])[0].get("display", "")
@@ -140,21 +177,60 @@ def get_fhir_context(patient_id):
             med_name = r["medicationReference"].get("display", "Medicamento")
         dosage_list = r.get("dosageInstruction", [])
         dosage = dosage_list[0].get("text", "") if dosage_list else ""
+        status_label = f" [{status}]" if status != "active" else ""
         if dosage:
-            med_list.append(f"- {med_name} ({dosage})")
+            med_list.append(f"- {med_name} ({dosage}){status_label}")
         else:
-            med_list.append(f"- {med_name}")
+            med_list.append(f"- {med_name}{status_label}")
+
+    # Procedures (recent)
+    procedures = requests.get(
+        f"{FHIR_URL}/Procedure?patient={patient_id}&_sort=-date&_count=10"
+    ).json()
+    proc_list = []
+    for e in procedures.get("entry", []):
+        r = e["resource"]
+        code_display = r.get("code", {}).get("coding", [{}])[0].get("display", r.get("code", {}).get("text", ""))
+        date = r.get("performedDateTime", r.get("performedPeriod", {}).get("start", ""))[:10]
+        if code_display:
+            proc_list.append(f"- {code_display} ({date})" if date else f"- {code_display}")
+
+    # CarePlans
+    careplans = requests.get(
+        f"{FHIR_URL}/CarePlan?patient={patient_id}&status=active&_count=5"
+    ).json()
+    care_list = []
+    for e in careplans.get("entry", []):
+        r = e["resource"]
+        categories = [
+            cat.get("coding", [{}])[0].get("display", cat.get("text", ""))
+            for cat in r.get("category", [])
+        ]
+        activities = [
+            a.get("detail", {}).get("code", {}).get("coding", [{}])[0].get("display", "")
+            for a in r.get("activity", [])
+        ]
+        activities = [a for a in activities if a]
+        label = ", ".join(categories) if categories else "Plano de cuidado"
+        if activities:
+            care_list.append(f"- {label}: {', '.join(activities[:3])}")
+        else:
+            care_list.append(f"- {label}")
 
     nl = "\n"
     sections = [info]
     if enc_info:
-        sections.append(f"\nInternacao:\n{nl.join(enc_info)}")
+        sections.append(f"\nInternacoes/Consultas recentes:\n{nl.join(enc_info)}")
     if conds:
         sections.append(f"\nCondicoes ativas:\n{nl.join(conds)}")
     if obs:
         sections.append(f"\nObservacoes recentes:\n{nl.join(obs)}")
     if med_list:
-        sections.append(f"\nMedicacoes ativas:\n{nl.join(med_list)}")
+        sections.append(f"\nMedicacoes:\n{nl.join(med_list)}")
+    if proc_list:
+        sections.append(f"\nProcedimentos recentes:\n{nl.join(proc_list)}")
+    if care_list:
+        sections.append(f"\nPlanos de cuidado ativos:\n{nl.join(care_list)}")
     return "\n".join(sections)
 
 
