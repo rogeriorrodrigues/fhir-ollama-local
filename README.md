@@ -45,7 +45,7 @@ The HAPI FHIR server stores clinical data (the same standard Brazil's national h
 ### ⚡ Quickstart
 
 ```bash
-git clone https://github.com/YOUR_USER/fhir-ollama-local.git
+git clone https://github.com/rogerrrodrigues/fhir-ollama-local.git
 cd fhir-ollama-local
 
 docker compose up -d
@@ -65,7 +65,7 @@ O servidor HAPI FHIR armazena dados clínicos no padrão FHIR R4 — o mesmo que
 ### ⚡ Início Rápido
 
 ```bash
-git clone https://github.com/YOUR_USER/fhir-ollama-local.git
+git clone https://github.com/rogerrrodrigues/fhir-ollama-local.git
 cd fhir-ollama-local
 
 docker compose up -d

@@ -73,7 +73,7 @@ PERGUNTA: {question}"""
 
     resp = requests.post(
         OLLAMA_URL,
-        json={"model": "llama3", "prompt": prompt, "stream": False},
+        json={"model": "phi4", "prompt": prompt, "stream": False},
     )
     return resp.json()["response"]
 
@@ -84,11 +84,26 @@ if __name__ == "__main__":
     print(f"\nDados recuperados:\n{ctx}")
     print("\n" + "=" * 50)
 
+    # Primeira pergunta automatica
     q = (
         "Quais sao as condicoes dessa paciente e como os exames "
         "se relacionam com o tratamento atual?"
     )
-    print(f"\nPerguntando ao Ollama (llama3)...")
+    print(f"\nPerguntando ao Ollama (phi4)...")
     print(f"Pergunta: {q}\n")
     answer = ask_ollama(ctx, q)
     print(f"Resposta:\n{answer}")
+
+    # Loop interativo
+    print("\n" + "=" * 50)
+    print("Digite suas perguntas sobre o paciente (Ctrl+C para sair):\n")
+    try:
+        while True:
+            q = input("Voce: ").strip()
+            if not q:
+                continue
+            print(f"\nPensando...\n")
+            answer = ask_ollama(ctx, q)
+            print(f"Resposta:\n{answer}\n")
+    except (KeyboardInterrupt, EOFError):
+        print("\n\nEncerrado. Ate logo!")
