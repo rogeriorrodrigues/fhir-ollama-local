@@ -1,6 +1,6 @@
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 
-RUN apk add --no-cache bash curl jq
+RUN apt-get update && apt-get install -y --no-install-recommends curl jq && rm -rf /var/lib/apt/lists/*
 
 # Pin Synthea version for reproducibility
 ENV SYNTHEA_VERSION=3.3.0
