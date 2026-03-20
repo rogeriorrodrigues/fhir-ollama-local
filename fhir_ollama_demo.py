@@ -1,13 +1,62 @@
 import requests
+import math
 
 FHIR_URL = "http://localhost:8080/fhir"
 OLLAMA_URL = "http://localhost:11434/api/generate"
+PAGE_SIZE = 10
 
-PATIENTS = {
-    "1": {"id": "maria-001", "nome": "Maria Santos", "cenario": "Diabetes + Hipertensao (ambulatorial)"},
-    "2": {"id": "joao-002", "nome": "Joao Oliveira", "cenario": "ICC descompensada (UTI)"},
-    "3": {"id": "ana-003", "nome": "Ana Costa", "cenario": "Asma grave + Pneumonia (emergencia)"},
-}
+
+def get_patient_count():
+    """Retorna total de pacientes no servidor FHIR"""
+    resp = requests.get(f"{FHIR_URL}/Patient?_summary=count").json()
+    return resp.get("total", 0)
+
+
+def list_patients(page=0):
+    """Lista pacientes com paginacao usando Bundle links"""
+    url = f"{FHIR_URL}/Patient?_count={PAGE_SIZE}&_sort=family"
+    # Navigate to the correct page by following next links
+    for _ in range(page):
+        resp = requests.get(url).json()
+        next_link = None
+        for link in resp.get("link", []):
+            if link.get("relation") == "next":
+                next_link = link["url"]
+                break
+        if not next_link:
+            return []
+        url = next_link
+
+    resp = requests.get(url).json()
+    patients = []
+    for e in resp.get("entry", []):
+        r = e["resource"]
+        names = r.get("name") or [{}]
+        name = names[0] if names else {}
+        given = name.get("given", [""])[0]
+        family = name.get("family", "")
+        patients.append({
+            "id": r["id"],
+            "name": f"{given} {family}".strip(),
+            "gender": r.get("gender", ""),
+            "birthDate": r.get("birthDate", ""),
+        })
+    return patients
+
+
+def get_patient_conditions(patient_id):
+    """Retorna lista de condicoes ativas para exibir no menu"""
+    resp = requests.get(
+        f"{FHIR_URL}/Condition?patient={patient_id}&clinical-status=active"
+    ).json()
+    conditions = []
+    for e in resp.get("entry", []):
+        code_block = e["resource"].get("code", {})
+        coding = code_block.get("coding", [{}])[0]
+        display = coding.get("display", code_block.get("text", ""))
+        if display:
+            conditions.append(display)
+    return conditions
 
 
 def get_fhir_context(patient_id):
@@ -123,36 +172,72 @@ PERGUNTA: {question}"""
     return resp.json()["response"]
 
 
-def show_menu():
+def show_menu(patients, page, total_pages):
     print("\n" + "=" * 50)
     print("  FHIR + Ollama - Assistente Clinico")
     print("=" * 50)
-    print("\nPacientes disponiveis:\n")
-    for key, p in PATIENTS.items():
-        print(f"  [{key}] {p['nome']} - {p['cenario']}")
-    print(f"\n  [0] Sair")
+
+    if not patients:
+        print("\n  Nenhum paciente encontrado.")
+        print("  Aguarde o carregamento do Synthea.")
+        print(f"\n  [0] Sair")
+        print()
+        return
+
+    print(f"\nPacientes disponiveis (pagina {page + 1}/{total_pages}):\n")
+    for i, p in enumerate(patients, 1):
+        gender_label = p["gender"][0].upper() if p["gender"] else "?"
+        print(f"  [{i}] {p['name']} ({gender_label}, {p['birthDate']})")
+        conditions = get_patient_conditions(p["id"])
+        if conditions:
+            print(f"      {', '.join(conditions[:5])}")
+
+    print()
+    if total_pages > 1:
+        if page < total_pages - 1:
+            print("  [n] Proxima pagina")
+        if page > 0:
+            print("  [p] Pagina anterior")
+    print("  [0] Sair")
     print()
 
 
 if __name__ == "__main__":
+    page = 0
     while True:
-        show_menu()
-        choice = input("Escolha o paciente: ").strip()
+        total = get_patient_count()
+        total_pages = max(1, math.ceil(total / PAGE_SIZE))
+        patients = list_patients(page)
+
+        show_menu(patients, page, total_pages)
+        choice = input("Escolha o paciente: ").strip().lower()
 
         if choice == "0":
             print("\nEncerrado. Ate logo!")
             break
+        elif choice == "n" and page < total_pages - 1:
+            page += 1
+            continue
+        elif choice == "p" and page > 0:
+            page -= 1
+            continue
 
-        if choice not in PATIENTS:
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(patients):
+                patient = patients[idx]
+            else:
+                print("\nOpcao invalida. Tente novamente.")
+                continue
+        except ValueError:
             print("\nOpcao invalida. Tente novamente.")
             continue
 
-        patient = PATIENTS[choice]
-        print(f"\n>>> Consultando FHIR para: {patient['nome']}...")
+        print(f"\n>>> Consultando FHIR para: {patient['name']}...")
         ctx = get_fhir_context(patient["id"])
         print(f"\n{ctx}")
         print("\n" + "-" * 50)
-        print(f"Modo interativo - Paciente: {patient['nome']}")
+        print(f"Modo interativo - Paciente: {patient['name']}")
         print("Digite suas perguntas (ou 'voltar' para trocar de paciente)")
         print("-" * 50)
 
