@@ -55,6 +55,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T10:00:00Z",
     "subject": {"reference": "Patient/maria-001"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "4548-4", "display": "Hemoglobin A1c"}]},
     "valueQuantity": {"value": 9.2, "unit": "%", "system": "http://unitsofmeasure.org", "code": "%"}
@@ -65,6 +66,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T10:00:00Z",
     "subject": {"reference": "Patient/maria-001"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel"}]},
     "component": [
@@ -174,6 +176,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T09:00:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "30934-4", "display": "BNP (Brain natriuretic peptide)"}]},
     "valueQuantity": {"value": 1850, "unit": "pg/mL", "system": "http://unitsofmeasure.org", "code": "pg/mL"}
@@ -185,6 +188,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T09:00:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "10230-1", "display": "Left ventricular ejection fraction"}]},
     "valueQuantity": {"value": 25, "unit": "%", "system": "http://unitsofmeasure.org", "code": "%"}
@@ -196,6 +200,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T08:30:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "2160-0", "display": "Creatinine"}]},
     "valueQuantity": {"value": 2.1, "unit": "mg/dL", "system": "http://unitsofmeasure.org", "code": "mg/dL"}
@@ -207,6 +212,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T08:30:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "2951-2", "display": "Sodium"}]},
     "valueQuantity": {"value": 131, "unit": "mEq/L", "system": "http://unitsofmeasure.org", "code": "meq/L"}
@@ -218,6 +224,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T08:30:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "2823-3", "display": "Potassium"}]},
     "valueQuantity": {"value": 5.3, "unit": "mEq/L", "system": "http://unitsofmeasure.org", "code": "meq/L"}
@@ -229,6 +236,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T08:00:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "2708-6", "display": "Oxygen saturation"}]},
     "valueQuantity": {"value": 88, "unit": "%", "system": "http://unitsofmeasure.org", "code": "%"}
@@ -240,6 +248,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T08:00:00Z",
     "subject": {"reference": "Patient/joao-002"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel"}]},
     "component": [
@@ -340,6 +349,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T14:00:00Z",
     "subject": {"reference": "Patient/ana-003"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "8310-5", "display": "Body temperature"}]},
     "valueQuantity": {"value": 38.7, "unit": "C", "system": "http://unitsofmeasure.org", "code": "Cel"}
@@ -351,6 +361,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T14:00:00Z",
     "subject": {"reference": "Patient/ana-003"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "2708-6", "display": "Oxygen saturation"}]},
     "valueQuantity": {"value": 91, "unit": "%", "system": "http://unitsofmeasure.org", "code": "%"}
@@ -362,6 +373,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T14:00:00Z",
     "subject": {"reference": "Patient/ana-003"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "9279-1", "display": "Respiratory rate"}]},
     "valueQuantity": {"value": 28, "unit": "/min", "system": "http://unitsofmeasure.org", "code": "/min"}
@@ -373,6 +385,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T14:30:00Z",
     "subject": {"reference": "Patient/ana-003"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "6690-2", "display": "Leukocytes"}]},
     "valueQuantity": {"value": 15200, "unit": "/uL", "system": "http://unitsofmeasure.org", "code": "/uL"}
@@ -384,6 +397,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T14:30:00Z",
     "subject": {"reference": "Patient/ana-003"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "1988-5", "display": "C reactive protein"}]},
     "valueQuantity": {"value": 89, "unit": "mg/L", "system": "http://unitsofmeasure.org", "code": "mg/L"}
@@ -395,6 +409,7 @@ curl -s -X POST "$FHIR_URL/Observation" \
   -d '{
     "resourceType": "Observation",
     "status": "final",
+    "effectiveDateTime": "2026-03-19T14:15:00Z",
     "subject": {"reference": "Patient/ana-003"},
     "code": {"coding": [{"system": "http://loinc.org", "code": "19935-6", "display": "Peak expiratory flow rate"}]},
     "valueQuantity": {"value": 180, "unit": "L/min", "system": "http://unitsofmeasure.org", "code": "L/min"}
