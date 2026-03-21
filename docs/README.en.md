@@ -17,6 +17,8 @@
 - [Prerequisites](#-prerequisites)
 - [Step-by-Step Setup](#-step-by-step-setup)
 - [Understanding the Code](#-understanding-the-code)
+- [Synthea Integration](#-synthea-integration)
+- [Clinical Evolution Notes](#-clinical-evolution-notes)
 - [FHIR Resources Explained](#-fhir-resources-explained)
 - [Expected Output](#-expected-output)
 - [Why This Matters](#-why-this-matters)
@@ -29,12 +31,13 @@
 
 This pipeline runs a **fully local clinical AI** that reads patient data from a FHIR R4 server and provides clinical reasoning — all without sending a single byte to the cloud.
 
-**Three components, one `docker compose up`:**
+**Three components, one `podman-compose up`:**
 
 | Component | What It Does | Port |
 |-----------|-------------|------|
 | 🔥 **HAPI FHIR** | Stores clinical data in FHIR R4 format | `8080` |
-| 🦙 **Ollama** | Runs LLaMA 3 locally as the AI brain | `11434` |
+| 🦙 **Ollama** | Runs LLaMA 3.2 locally as the AI brain | `11434` |
+| 🧬 **Synthea** | Auto-generates synthetic patients on startup | — |
 | 🐍 **Python script** | Queries FHIR → builds context → asks Ollama | — |
 
 The AI **does not hallucinate** because it only works with data retrieved from the FHIR server. Every claim in its response traces back to a real clinical resource.
@@ -47,23 +50,28 @@ The AI **does not hallucinate** because it only works with data retrieved from t
 ┌──────────────────────────────────────────────────────────────────┐
 │                        YOUR MACHINE                              │
 │                                                                  │
-│  ┌─────────────┐                          ┌─────────────┐       │
-│  │  HAPI FHIR  │◄── REST API (JSON) ──►  │   Python    │       │
-│  │  Server     │    GET /Patient          │   Script    │       │
-│  │             │    GET /Condition         │  (60 lines) │       │
-│  │  Port 8080  │    GET /Observation       │             │       │
-│  │             │    GET /MedicationRequest │             │       │
-│  └─────────────┘                          └──────┬──────┘       │
-│       Docker                                     │              │
-│                                                   │              │
-│                                          POST /api/generate      │
-│                                                   │              │
-│                                          ┌────────▼──────┐      │
-│                                          │    Ollama     │      │
-│                                          │   LLaMA 3    │      │
-│                                          │  Port 11434  │      │
-│                                          └───────────────┘      │
-│                                               Docker            │
+│  ┌─────────────┐   healthcheck   ┌─────────────┐                │
+│  │  HAPI FHIR  │◄────────────────│   Synthea   │                │
+│  │  Server     │   POST /fhir    │  (auto-gen) │                │
+│  │             │   (bundles)     │             │                │
+│  │  Port 8080  │                 └─────────────┘                │
+│  │             │◄── REST API (JSON) ──►                         │
+│  │             │    GET /Patient          ┌─────────────┐        │
+│  │             │    GET /Condition        │   Python    │        │
+│  │             │    GET /Observation      │   Script    │        │
+│  │             │    GET /MedicationRequest│  (demo)     │        │
+│  │             │    GET /DocumentReference│             │        │
+│  └─────────────┘                          └──────┬──────┘        │
+│       Podman                                     │               │
+│                                                   │               │
+│                                          POST /api/generate       │
+│                                                   │               │
+│                                          ┌────────▼──────┐       │
+│                                          │    Ollama     │       │
+│                                          │  LLaMA 3.2:3b │       │
+│                                          │  Port 11434   │       │
+│                                          └───────────────┘       │
+│                                               Podman             │
 │                                                                  │
 │  🔒 Nothing leaves this box. LGPD/GDPR-friendly by design.     │
 └──────────────────────────────────────────────────────────────────┘
@@ -75,12 +83,15 @@ The AI **does not hallucinate** because it only works with data retrieved from t
 
 | Requirement | Minimum | Notes |
 |-------------|---------|-------|
-| Docker + Docker Compose | v20+ | [Install Docker](https://docs.docker.com/get-docker/) |
+| Podman + podman-compose | Podman v4+ | [Install Podman](https://podman.io/getting-started/installation) |
 | Python | 3.8+ | With `requests` library |
-| Free disk space | ~5 GB | For HAPI FHIR image + LLaMA 3 model |
-| RAM | 8 GB+ | LLaMA 3 needs ~4GB RAM |
+| Free disk space | ~5 GB | For HAPI FHIR image + LLaMA 3.2 model |
+| RAM | 8 GB+ | LLaMA 3.2:3b needs ~3GB RAM |
 
 ```bash
+# Install Podman and podman-compose (macOS example)
+brew install podman podman-compose
+
 # Install Python dependency
 pip install requests
 ```
@@ -94,34 +105,28 @@ pip install requests
 ```bash
 git clone https://github.com/YOUR_USER/fhir-ollama-local.git
 cd fhir-ollama-local
-docker compose up -d
+podman-compose up -d
 ```
 
-This starts two containers: HAPI FHIR (port 8080) and Ollama (port 11434).
+This starts three containers: HAPI FHIR (port 8080), Ollama (port 11434), and Synthea. Synthea waits for FHIR to pass its healthcheck, then automatically generates synthetic patients and loads them — no manual step required.
 
-### Step 2: Download the LLaMA 3 model
+### Step 2: Download the LLaMA 3.2 model
 
 ```bash
-docker exec -it $(docker ps -q -f name=ollama) ollama pull llama3
+podman exec -it $(podman ps -q -f name=ollama) ollama pull llama3.2:3b
 ```
 
-> ⏳ First time only. Downloads ~4GB. Go grab a coffee ☕
+> First time only. Downloads ~2GB. Go grab a coffee ☕
 
-### Step 3: Load the sample patient
+### Step 3: Run the demo
 
 ```bash
-bash load_patient.sh
+python3 fhir_ollama_demo.py
 ```
 
-This creates Maria Santos with all her clinical data in the FHIR server. The script waits for HAPI FHIR to be ready before loading.
+🎉 A dual-mode interactive menu appears — pick a curated clinical scenario or any Synthea-generated patient!
 
-### Step 4: Run the demo
-
-```bash
-python fhir_ollama_demo.py
-```
-
-🎉 Watch the AI read clinical data and provide grounded reasoning!
+> **No need to run `bash load_patient.sh` manually.** The Synthea container calls it automatically on startup.
 
 ---
 
@@ -133,36 +138,148 @@ python fhir_ollama_demo.py
 services:
   fhir:
     image: hapiproject/hapi:latest    # FHIR R4 server
-    ports: ["8080:8080"]              # REST API accessible on localhost
+    ports: ["8080:8080"]
+    healthcheck:                      # Synthea waits for this to pass
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/fhir/metadata || exit 1"]
+      interval: 10s
+      retries: 12
+
+  synthea:
+    build:
+      context: .
+      dockerfile: synthea/Dockerfile  # Builds Synthea image locally
+    depends_on:
+      fhir:
+        condition: service_healthy    # Only starts after FHIR is ready
+    environment:
+      - SYNTHEA_POPULATION=20         # Default: 20 patients
+      - SYNTHEA_STATE=Massachusetts
+
   ollama:
     image: ollama/ollama:latest       # Local LLM runtime
-    ports: ["11434:11434"]            # Ollama API accessible on localhost
+    ports: ["11434:11434"]
+    volumes:
+      - ollama_data:/root/.ollama     # Persists downloaded models
 ```
 
-Two containers. No external dependencies. No API keys. No cloud accounts.
+Three containers. No external dependencies. No API keys. No cloud accounts.
 
 ### `fhir_ollama_demo.py` — The Core Logic
 
-The script does three things:
+The script presents a **dual-mode interactive menu**:
 
-**1. Queries FHIR** — Four REST calls to get the complete clinical picture:
+**Section 1 — Curated demo patients** (loaded by `load_patient.sh`):
+- Maria Santos: Diabetes + Hypertension (outpatient)
+- João Oliveira: Decompensated heart failure (ICU)
+- Ana Costa: Severe asthma + Pneumonia (emergency)
+
+**Section 2 — Synthea patients** (auto-generated, paginated):
+- All patients with active clinical data
+- Shows name, gender, birth date, and active conditions
+- Navigate with `[n]` / `[p]` for next/previous pages
+
+For each selected patient the script:
+
+**1. Queries FHIR** — Seven REST calls to get the full clinical picture:
 ```python
-GET /Patient/{id}              → Demographics
-GET /Condition?patient={id}    → Active conditions (diabetes, hypertension)
-GET /Observation?patient={id}  → Lab results (HbA1c, blood pressure)
-GET /MedicationRequest?patient={id} → Active medications (metformin, losartan)
+GET /Patient/{id}                       → Demographics
+GET /Encounter?patient={id}             → Recent hospitalizations / visits
+GET /Condition?patient={id}             → Active conditions
+GET /Observation?patient={id}           → Lab results and vitals
+GET /MedicationRequest?patient={id}     → Active medications
+GET /Procedure?patient={id}             → Recent procedures
+GET /CarePlan?patient={id}              → Active care plans
+GET /DocumentReference?patient={id}     → Clinical evolution notes
 ```
 
-**2. Builds context** — Structures the data into a readable clinical summary.
+**2. Builds context** — Structures all data into a readable clinical summary.
 
 **3. Asks Ollama** — Sends the context with a strict prompt: "respond ONLY based on the provided data."
 
-### `load_patient.sh`
+**4. Enters interactive Q&A** — Type any clinical question; type `voltar` to pick another patient.
 
-Creates 7 FHIR resources using `curl` commands with proper terminologies:
-- Uses `PUT` (not POST) for the Patient to guarantee the ID `maria-001`
+### `load_patient.sh` + `load_evolutions.sh`
+
+`load_patient.sh` creates three curated patients with rich clinical data using `curl` commands and proper terminologies:
+- Uses `PUT` (not POST) for each Patient to guarantee stable IDs (`maria-001`, `joao-002`, `ana-003`)
 - All Conditions include the required `clinicalStatus` system
 - Blood pressure uses proper LOINC component codes with UCUM units
+
+`load_evolutions.sh` attaches clinical evolution notes (nursing assessments, serial vitals) as `DocumentReference` resources to those same patients.
+
+Both scripts are called automatically by the Synthea container entrypoint — no manual execution needed.
+
+### `synthea/` directory
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Builds the Synthea image (Java + Synthea JAR + scripts) |
+| `entrypoint.sh` | Orchestrates: waits for FHIR → loads curated patients → runs Synthea → uploads bundles → generates notes |
+| `generate_notes.py` | Creates `DocumentReference` resources with clinical notes for Synthea patients |
+| `synthea.properties` | Configures Synthea output format (FHIR R4 bundles) |
+
+---
+
+## 🧬 Synthea Integration
+
+Synthea generates realistic synthetic patient populations. The integration is fully automatic — just `podman-compose up -d`.
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SYNTHEA_POPULATION` | `20` | Number of patients to generate |
+| `SYNTHEA_STATE` | `Massachusetts` | US state for demographic data |
+| `SYNTHEA_MIN_AGE` | `30` | Minimum patient age |
+| `SYNTHEA_MAX_AGE` | `85` | Maximum patient age |
+| `SYNTHEA_SEED` | _(random)_ | Fixed seed for reproducible runs |
+| `SYNTHEA_MODULES` | _(all)_ | Comma-separated condition modules |
+| `SYNTHEA_CLEAN_FIRST` | `false` | Delete existing patients before loading |
+
+### Regenerating patients
+
+```bash
+# Regenerate with a different population (clean slate)
+SYNTHEA_POPULATION=50 SYNTHEA_CLEAN_FIRST=true podman-compose up synthea
+
+# Full simulation: specific disease modules only
+SYNTHEA_MODULES=diabetes,hypertension SYNTHEA_POPULATION=30 podman-compose up synthea
+
+# Reproducible run with fixed seed
+SYNTHEA_SEED=42 podman-compose up synthea
+```
+
+### What Synthea generates
+
+Synthea produces complete FHIR R4 bundles containing the full patient lifecycle:
+- Patient demographics, encounters, conditions, observations
+- Medications, procedures, immunizations, care plans
+- Hospital and practitioner information bundles
+
+After uploading all bundles, `generate_notes.py` creates additional `DocumentReference` resources with clinical notes for each Synthea patient.
+
+---
+
+## 📋 Clinical Evolution Notes
+
+### What they are
+
+Clinical evolution notes are structured narrative records added to patients as `DocumentReference` FHIR resources. They simulate the documentation nurses and physicians write during care.
+
+### Curated patients (load_evolutions.sh)
+
+The curated patients receive hand-crafted evolution notes, including:
+- **Nursing assessments** — systematic evaluations of patient status
+- **Serial vitals** — time-series blood pressure, heart rate, SpO2, and temperature readings
+- **Physician notes** — clinical reasoning and treatment adjustments
+
+### Synthea patients (generate_notes.py)
+
+Each Synthea patient automatically receives a `DocumentReference` with a generated clinical note summarizing their active conditions and recent observations.
+
+### How the demo uses them
+
+The Python script retrieves `DocumentReference` resources, decodes the base64-encoded note content, and includes them in the clinical context sent to Ollama — giving the AI access to narrative documentation alongside structured FHIR data.
 
 ---
 
@@ -174,8 +291,8 @@ FHIR (Fast Healthcare Interoperability Resources) is the global standard for exc
 
 ### Resources Created
 
-| Resource | FHIR Type | Terminology | Code | Value |
-|----------|-----------|-------------|------|-------|
+| Resource | FHIR Type | Terminology | Code | Example Value |
+|----------|-----------|-------------|------|---------------|
 | Patient | `Patient` | — | — | Maria Santos, F, 1966 |
 | Diabetes | `Condition` | SNOMED CT | `73211009` | Active |
 | Hypertension | `Condition` | SNOMED CT | `38341003` | Active |
@@ -183,15 +300,38 @@ FHIR (Fast Healthcare Interoperability Resources) is the global standard for exc
 | Blood Pressure | `Observation` | LOINC | `85354-9` | 150/95 mmHg |
 | Metformin | `MedicationRequest` | Free text | — | 850mg BID |
 | Losartan | `MedicationRequest` | Free text | — | 50mg QD |
+| Nursing note | `DocumentReference` | LOINC | `34109-9` | Base64-encoded narrative |
 
 ---
 
 ## 📺 Expected Output
 
 ```
-=== Consultando servidor FHIR ===
+==================================================
+  FHIR + Ollama - Assistente Clinico
+==================================================
 
-Dados recuperados:
+-- Cenarios clinicos curados (dados ricos) --
+
+  [1] Maria Santos - Diabetes + Hipertensao (ambulatorial)
+  [2] Joao Oliveira - ICC descompensada (UTI)
+  [3] Ana Costa - Asma grave + Pneumonia (emergencia)
+
+-- Pacientes Synthea (pagina 1/3) --
+
+  [4] Alice Johnson (F, 1952-03-14)
+      Diabetes mellitus type 2, Hypertensive disorder
+  [5] Bob Smith (M, 1968-07-22)
+      Coronary Heart Disease, Hyperlipidemia
+  ...
+
+  [n] Proxima pagina (Synthea)
+  [0] Sair
+
+Escolha o paciente: 1
+
+>>> Consultando FHIR para: Maria Santos...
+
 Paciente: Maria Santos, female, nascimento: 1966-05-12
 
 Condicoes ativas:
@@ -199,17 +339,25 @@ Condicoes ativas:
 - Hypertensive disorder (SNOMED: 38341003)
 
 Observacoes recentes:
-- Hemoglobin A1c: 9.2 %
-- Blood pressure panel: Systolic blood pressure: 150mmHg, Diastolic blood pressure: 95mmHg
+- Hemoglobin A1c: 9.2 % (2024-11-15)
+- Blood pressure panel: Systolic blood pressure: 150mmHg, Diastolic blood pressure: 95mmHg (2024-11-15)
 
-Medicacoes ativas:
+Medicacoes:
 - Metformina 850mg (850mg 2x/dia)
 - Losartana 50mg (50mg 1x/dia)
 
-==================================================
+Evolucoes clinicas:
+- [Nursing Note] 2024-11-15T08:30 | Enf. Silva | Avaliacao de enfermagem
+  Paciente consciente, orientada...
 
-Perguntando ao Ollama (llama3)...
-Pergunta: Quais sao as condicoes dessa paciente e como os exames se relacionam com o tratamento atual?
+--------------------------------------------------
+Modo interativo - Paciente: Maria Santos
+Digite suas perguntas (ou 'voltar' para trocar de paciente)
+--------------------------------------------------
+
+Voce: Quais sao as condicoes dessa paciente e como os exames se relacionam com o tratamento atual?
+
+Pensando...
 
 Resposta:
 [Ollama provides clinical reasoning grounded in the FHIR data]
@@ -226,7 +374,7 @@ No patient data leaves your machine. The entire pipeline runs locally. This elim
 HAPI FHIR uses the same standard as Brazil's RNDS (Rede Nacional de Dados em Saúde) — FHIR R4. The RNDS already has 2.8 billion records. Building on FHIR today means compatibility with the national health infrastructure tomorrow.
 
 ### 💰 Zero Cost
-Docker (free) + Ollama (free) + HAPI FHIR (Apache 2.0) + Python (free) = **$0/month**.
+Podman (free) + Ollama (free) + HAPI FHIR (Apache 2.0) + Synthea (Apache 2.0) + Python (free) = **$0/month**.
 
 ---
 
@@ -234,17 +382,19 @@ Docker (free) + Ollama (free) + HAPI FHIR (Apache 2.0) + Python (free) = **$0/mo
 
 | Problem | Solution |
 |---------|----------|
-| `Connection refused` on port 8080 | HAPI FHIR takes ~30s to start. Wait or run `load_patient.sh` (it auto-waits). |
-| `model not found` in Ollama | Run `docker exec -it $(docker ps -q -f name=ollama) ollama pull llama3` |
+| `Connection refused` on port 8080 | HAPI FHIR takes ~30s to start. The Synthea container waits automatically via healthcheck. |
+| `model not found` in Ollama | Run `podman exec -it $(podman ps -q -f name=ollama) ollama pull llama3.2:3b` |
 | Python `ModuleNotFoundError: requests` | Run `pip install requests` |
-| Ollama response is slow | LLaMA 3 needs ~4GB RAM. Close other apps or use a smaller model (`llama3:8b`). |
-| Patient not found (404) | Re-run `bash load_patient.sh`. It uses PUT to force the ID. |
+| Ollama response is slow | LLaMA 3.2:3b needs ~3GB RAM. Close other apps. |
+| Patient not found (404) | Curated patients are loaded by Synthea container. Check `podman logs` for the synthea container. |
+| Synthea container exits immediately | Check `podman logs <synthea-container-id>` for Java or curl errors. |
+| No Synthea patients in menu | Synthea may still be running. Wait a minute and restart the demo. |
 
 ---
 
 ## 🗺️ Next Steps
 
-- [ ] 🧬 **Synthea** — Generate hundreds of synthetic patients automatically
+- [x] ✅ **Synthea** — Auto-generates hundreds of synthetic patients on startup
 - [ ] 🛡️ **Presidio** — Add Microsoft's anonymization layer before the LLM
 - [ ] 📊 **RAGAS** — Evaluate response quality with faithfulness > 0.85
 - [ ] 🔌 **MCP Server** — Standardized AI-to-FHIR access protocol
