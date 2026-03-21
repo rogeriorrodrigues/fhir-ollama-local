@@ -1,5 +1,6 @@
 import requests
 import math
+import base64
 
 FHIR_URL = "http://localhost:8080/fhir"
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -218,6 +219,33 @@ def get_fhir_context(patient_id):
         else:
             care_list.append(f"- {label}")
 
+    # Clinical notes (evolucoes clinicas)
+    docs = requests.get(
+        f"{FHIR_URL}/DocumentReference?patient={patient_id}&_sort=-date&_count=10"
+    ).json()
+    notes = []
+    for e in docs.get("entry", []):
+        r = e["resource"]
+        doc_type = r.get("type", {}).get("coding", [{}])[0].get("display", "Note")
+        date = r.get("date", "")[:16]
+        author = r.get("author", [{}])[0].get("display", "")
+        description = r.get("description", "")
+        content = ""
+        for c in r.get("content", []):
+            data = c.get("attachment", {}).get("data", "")
+            if data:
+                content = base64.b64decode(data).decode("utf-8", errors="replace")
+        header = f"- [{doc_type}] {date}"
+        if author:
+            header += f" | {author}"
+        if description:
+            header += f" | {description}"
+        if content:
+            truncated = content[:500] + "..." if len(content) > 500 else content
+            notes.append(f"{header}\n  {truncated}")
+        else:
+            notes.append(header)
+
     nl = "\n"
     sections = [info]
     if enc_info:
@@ -232,6 +260,8 @@ def get_fhir_context(patient_id):
         sections.append(f"\nProcedimentos recentes:\n{nl.join(proc_list)}")
     if care_list:
         sections.append(f"\nPlanos de cuidado ativos:\n{nl.join(care_list)}")
+    if notes:
+        sections.append(f"\nEvolucoes clinicas:\n{nl.join(notes)}")
     return "\n".join(sections)
 
 
