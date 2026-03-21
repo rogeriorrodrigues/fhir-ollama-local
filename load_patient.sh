@@ -461,6 +461,20 @@ curl -s -X POST "$FHIR_URL/MedicationRequest" \
   }' > /dev/null && echo "Medication: Brometo de Ipratropio"
 
 ########################################
+# EVOLUCOES CLINICAS
+########################################
+echo ""
+echo "=========================================="
+echo "  Carregando evolucoes clinicas"
+echo "=========================================="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/load_evolutions.sh" ]; then
+  bash "$SCRIPT_DIR/load_evolutions.sh"
+elif [ -f "/opt/load_evolutions.sh" ]; then
+  bash "/opt/load_evolutions.sh"
+fi
+
+########################################
 # VERIFICACAO FINAL
 ########################################
 echo ""
