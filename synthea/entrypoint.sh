@@ -130,6 +130,11 @@ else
   echo "  AVISO: nenhum bundle gerado"
 fi
 
+# Generate clinical notes for Synthea patients
+echo ""
+echo "Gerando evolucoes clinicas para pacientes Synthea..."
+python3 /opt/generate_notes.py "$FHIR_URL"
+
 echo ""
 echo "=========================================="
 echo "  Synthea concluido!"
