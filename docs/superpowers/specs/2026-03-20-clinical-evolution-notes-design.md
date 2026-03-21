@@ -1,7 +1,7 @@
 # Clinical Evolution Notes Design
 
 **Date**: 2026-03-20
-**Status**: Draft
+**Status**: Review
 **Goal**: Add clinical evolution history (medical and nursing notes) to both curated and Synthea patients, enabling the AI to answer questions about patient evolution, nursing assessments, and medical decision-making.
 
 ---
@@ -16,7 +16,7 @@ Students and clinicians need to query the AI about clinical evolution: "What hap
 
 ### Requirements (from brainstorming)
 
-- **Dual FHIR resources**: `DocumentReference` for narrative notes + `Observation` (category: survey) for structured nursing assessments
+- **Dual FHIR resources**: `DocumentReference` for narrative notes + `Observation` for structured nursing assessments (category: `vital-signs` for vitals/weight, `survey` for pain/consciousness/fluid balance)
 - **Curated patients**: handwritten evolution notes in **Portuguese**, volume scaled to scenario (ambulatorial=few, UTI=many, emergência=moderate)
 - **Synthea patients**: template-generated evolution notes in **English**, based on patient's real FHIR data
 - **AI integration**: `get_fhir_context()` includes recent evolution notes in the context sent to Ollama
@@ -48,9 +48,12 @@ Used for: medical progress notes, nursing evolution notes, admission notes, tria
     }]
   }],
   "subject": {"reference": "Patient/joao-002"},
-  "date": "2025-03-19T08:00:00Z",
+  "date": "2026-03-19T08:00:00Z",
   "author": [{"display": "Dr. Ricardo Mendes - Cardiologia"}],
   "description": "Evolucao medica - manha",
+  "context": {
+    "encounter": [{"reference": "Encounter/encounter-id"}]
+  },
   "content": [{
     "attachment": {
       "contentType": "text/plain",
@@ -58,6 +61,11 @@ Used for: medical progress notes, nursing evolution notes, admission notes, tria
     }
   }]
 }
+```
+
+**Date convention:** All curated evolution notes use dates relative to a fixed scenario date of `2026-03-19` (day of admission/consultation). This avoids confusion with "last 24h" queries.
+
+**Encounter reference:** DocumentReferences for João and Ana include `context.encounter` linking to the relevant Encounter resource. Maria's notes reference her consultation encounters (to be created as part of this change).
 ```
 
 **LOINC codes for document types:**
@@ -74,6 +82,10 @@ Used for: medical progress notes, nursing evolution notes, admission notes, tria
 
 Used for: serial vital signs by shift, fluid balance, pain scale, consciousness level.
 
+**Category mapping:**
+- Vital signs (BP, HR, RR, SpO2, Temperature, Weight) → category `vital-signs`
+- Fluid balance, pain scale, consciousness level (Glasgow) → category `survey`
+
 ```json
 {
   "resourceType": "Observation",
@@ -81,8 +93,8 @@ Used for: serial vital signs by shift, fluid balance, pain scale, consciousness 
   "category": [{
     "coding": [{
       "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-      "code": "survey",
-      "display": "Survey"
+      "code": "vital-signs",
+      "display": "Vital Signs"
     }]
   }],
   "code": {
@@ -93,11 +105,13 @@ Used for: serial vital signs by shift, fluid balance, pain scale, consciousness 
     }]
   },
   "subject": {"reference": "Patient/joao-002"},
-  "effectiveDateTime": "2025-03-19T08:00:00Z",
+  "effectiveDateTime": "2026-03-19T08:00:00Z",
   "performer": [{"display": "Enf. Lucia Ferreira"}],
   "valueQuantity": {"value": 82.5, "unit": "kg", "system": "http://unitsofmeasure.org", "code": "kg"}
 }
 ```
+
+**Note:** Existing curated Observations in `load_patient.sh` lack `effectiveDateTime`. New evolution Observations will include timestamps. Existing Observations should be backfilled with `effectiveDateTime` as part of this change for consistency.
 
 ---
 
@@ -158,11 +172,14 @@ Used for: serial vital signs by shift, fluid balance, pain scale, consciousness 
 
 A Python script (`generate_notes.py`) runs after Synthea bundles are uploaded. For each Synthea patient with clinical data:
 
-1. Query the patient's active Conditions, recent Observations, active Medications, and recent Encounters
-2. For each recent Encounter (up to 3 most recent):
+1. Query the patient's active Conditions, recent Observations, active Medications
+2. Check for recent Encounters; if none found, use Conditions as basis for notes
+3. For each patient with clinical data (up to 3 Encounters, or 1 note if no Encounters):
    - Generate 1 medical progress note (DocumentReference, type `11506-3`)
    - Generate 1 nursing note (DocumentReference, type `28651-8`)
-3. POST the DocumentReferences to the FHIR server
+4. POST the DocumentReferences to the FHIR server
+
+**Note:** Uses `urllib.request` from the Python standard library (no `requests` dependency needed in the container).
 
 ### Templates
 
@@ -203,7 +220,7 @@ Current Medications Administered:
 {medications_list}
 
 Assessment:
-Patient is {consciousness_level}, {mobility_status}. {condition_observations}.
+Patient is alert and oriented, ambulatory with assistance. {condition_observations}.
 
 Interventions:
 - Vital signs monitoring per protocol
@@ -244,8 +261,10 @@ fhir-ollama-local/
 
 Add a new section after Medications that fetches recent DocumentReferences:
 
+Note: `import base64` goes at the top of the file alongside `import requests`.
+
 ```python
-# Clinical notes
+# Clinical notes (evolucoes clinicas)
 docs = requests.get(
     f"{FHIR_URL}/DocumentReference?patient={patient_id}&_sort=-date&_count=10"
 ).json()
@@ -261,7 +280,6 @@ for e in docs.get("entry", []):
     for c in r.get("content", []):
         data = c.get("attachment", {}).get("data", "")
         if data:
-            import base64
             content = base64.b64decode(data).decode("utf-8", errors="replace")
     header = f"- [{doc_type}] {date}"
     if author:
@@ -276,7 +294,7 @@ for e in docs.get("entry", []):
         notes.append(header)
 ```
 
-This adds a "Evolucoes clinicas:" section to the context sent to Ollama.
+This adds an "Evolucoes clinicas:" section to the context sent to Ollama (no accents, consistent with existing section headers like "Condicoes ativas:", "Observacoes recentes:").
 
 ---
 
@@ -322,5 +340,8 @@ The AI can now answer:
 | DocumentReference content too large for LLM context | Truncate notes to 500 chars in get_fhir_context(); show most recent 10 |
 | Template notes may feel generic | Templates include real patient data (conditions, meds, vitals) for realism |
 | python3 not in Synthea container | Add to Dockerfile apt-get install |
+| `requests` not available in container Python | Use `urllib.request` from standard library instead |
 | base64 encoding adds complexity | Use standard library base64 module; straightforward encode/decode |
 | load_patient.sh growing too large | Evolution notes use same curl pattern; manageable growth |
+| Existing Observations lack effectiveDateTime | Backfill existing Observations with timestamps as part of this change |
+| Patients without Encounters for note generation | Fall back to Conditions-based notes; skip patients with no clinical data |
