@@ -184,10 +184,16 @@ All resources use official terminologies (SNOMED CT, LOINC, UCUM) and follow the
 
 - [x] 🧬 Synthea integration for automated patient generation
 - [x] 📋 Clinical evolution notes (DocumentReference) for all patients
-- [ ] 🛡️ Presidio integration for pre-LLM anonymization
+- [ ] 🛡️ [Presidio](https://microsoft.github.io/presidio/) integration for pre-LLM anonymization
 - [ ] 📊 RAGAS quality evaluation pipeline
 - [ ] 🔌 MCP Server for standardized AI-FHIR access
 - [ ] 🎓 Clinical simulation scenarios for nursing students
+
+### 🛡️ About Presidio (future)
+
+[Microsoft Presidio](https://microsoft.github.io/presidio/) is an open-source SDK for data protection and de-identification. It detects and anonymizes PII (names, CPFs, phone numbers, addresses) in text before sending it to an LLM. In this project, Presidio is **not yet integrated** because all patient data is already synthetic — curated patients are fictional and Synthea generates fully synthetic records. Presidio will become essential when the pipeline evolves to ingest real clinical data (e.g., from electronic health records), adding a pre-LLM anonymization layer to ensure LGPD/GDPR compliance even with real patient information.
+
+[Presidio](https://microsoft.github.io/presidio/) é um SDK open-source da Microsoft para proteção e desidentificação de dados. Ele detecta e anonimiza dados pessoais (nomes, CPFs, telefones, endereços) em texto antes de enviar ao LLM. Neste projeto, o Presidio **ainda não está integrado** porque todos os dados de pacientes já são sintéticos — os pacientes curados são fictícios e o Synthea gera registros totalmente sintéticos. O Presidio se tornará essencial quando o pipeline evoluir para ingerir dados clínicos reais (ex: de prontuários eletrônicos), adicionando uma camada de anonimização pré-LLM para garantir conformidade com a LGPD mesmo com dados reais de pacientes.
 
 ---
 

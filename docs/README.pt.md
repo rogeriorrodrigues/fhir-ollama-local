@@ -394,10 +394,14 @@ Podman (free) + Ollama (free) + HAPI FHIR (Apache 2.0) + Synthea (Apache 2.0) + 
 ## 🗺️ Próximos Passos
 
 - [x] 🧬 **Synthea** — Geração automática de pacientes sintéticos ao subir os containers ✅
-- [ ] 🛡️ **Presidio** — Camada de anonimização da Microsoft antes do LLM
+- [ ] 🛡️ **[Presidio](https://microsoft.github.io/presidio/)** — Camada de anonimização da Microsoft antes do LLM (veja nota abaixo)
 - [ ] 📊 **RAGAS** — Avaliar qualidade das respostas com faithfulness > 0.85
 - [ ] 🔌 **MCP Server** — Protocolo padronizado de acesso IA-FHIR
 - [ ] 🎓 **Cenários clínicos** — Simulação de enfermagem com feedback adaptativo
+
+### 🛡️ Sobre o Presidio (futuro)
+
+[Microsoft Presidio](https://microsoft.github.io/presidio/) é um SDK open-source para proteção e desidentificação de dados. Ele detecta e anonimiza dados pessoais (nomes, CPFs, telefones, endereços) em texto antes de enviar ao LLM. Neste projeto, o Presidio **ainda não está integrado** porque todos os dados de pacientes já são sintéticos — os pacientes curados são fictícios e o Synthea gera registros totalmente sintéticos. O Presidio se tornará essencial quando o pipeline evoluir para ingerir dados clínicos reais (ex: de prontuários eletrônicos), adicionando uma camada de anonimização pré-LLM para garantir conformidade com a LGPD mesmo com dados reais de pacientes.
 
 ---
 
