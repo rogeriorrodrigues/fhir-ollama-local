@@ -2,8 +2,8 @@ import requests
 import math
 import base64
 
-FHIR_URL = "http://localhost:8080/fhir"
-OLLAMA_URL = "http://localhost:11434/api/generate"
+FHIR_URL = "http://localhost:8082/fhir"
+OLLAMA_URL = "http://localhost:11435/api/generate"
 MODEL = "llama3.2:3b"
 PAGE_SIZE = 10
 
